@@ -33,8 +33,10 @@
 #define REG_RSSI_WIDEBAND        0x2c
 #define REG_DETECTION_OPTIMIZE   0x31
 #define REG_INVERTIQ             0x33
+#define REG_SEQ_CONFIG_1         0x36
 #define REG_DETECTION_THRESHOLD  0x37
 #define REG_SYNC_WORD            0x39
+#define REG_TIMER_2_COEF         0x3a
 #define REG_INVERTIQ2            0x3b
 #define REG_DIO_MAPPING_1        0x40
 #define REG_VERSION              0x42
@@ -547,15 +549,40 @@ void LoRaClass::setSignalBandwidth(long sbw)
 
 void LoRaClass::setLdoFlag()
 {
-  // Section 4.1.1.5
-  long symbolDuration = 1000 / ( getSignalBandwidth() / (1L << getSpreadingFactor()) ) ;
+  // Set Low data rate optimization flag when symbol longer than 16 mS
+long bandwidth = getSignalBandwidth();
+int datarate = getSpreadingFactor();
+boolean ldoOn = false;
 
-  // Section 4.1.1.6
-  boolean ldoOn = symbolDuration > 16;
-
+           if( ( ( bandwidth == 125E3 ) && ( ( datarate == 11 ) || ( datarate == 12 ) ) ) ||
+                ( ( bandwidth == 250E3 ) && ( datarate == 12 ) ) )
+            {
+                ldoOn = true;;
+            }
+            else
+            {
+                ldoOn = false;;
+            }
   uint8_t config3 = readRegister(REG_MODEM_CONFIG_3);
   bitWrite(config3, 3, ldoOn);
   writeRegister(REG_MODEM_CONFIG_3, config3);
+
+    //Sensitivity optimization with 500kHz Bandwith - Semtech errata note  
+    if (bandwidth == 500E3)
+    {
+    writeRegister(REG_SEQ_CONFIG_1,0x02);
+            if (_frequency < 860E6 )
+            {
+              writeRegister(REG_TIMER_2_COEF,0x7f);
+            } else {
+              writeRegister(REG_TIMER_2_COEF,0x64);
+            }
+
+    } else {
+      // default values
+      writeRegister(REG_SEQ_CONFIG_1,0x03);
+      writeRegister(REG_TIMER_2_COEF,0x65);
+    }
 }
 
 void LoRaClass::setCodingRate4(int denominator)
